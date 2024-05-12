@@ -68,6 +68,13 @@
 #define Z_MAX_PIN                           PB12
 
 //
+// Probe enable
+//
+#if ENABLED(PROBE_ENABLE_DISABLE) && !defined(PROBE_ENABLE_PIN)
+  #define PROBE_ENABLE_PIN            SERVO0_PIN
+#endif
+
+//
 // Steppers
 //
 #define X_ENABLE_PIN                        PC15  // Driver0
@@ -210,9 +217,6 @@
   #define KILL_PIN_STATE                    HIGH
 #endif
 
-// Random Info
-#define USB_SERIAL                          -1    // USB Serial
-
 /**
  *                  ------                                      ------
  *   (BEEPER) PB2  | 1  2 | PE10 (BTN_ENC)    (SPI1 MISO) PA6  | 1  2 | PA5 (SPI1 SCK)
@@ -294,7 +298,7 @@
   #define LCD_READ_ID                       0xD3
   #define LCD_USE_DMA_SPI
 
-  #define TFT_BUFFER_SIZE                  14400
+  #define TFT_BUFFER_WORDS                 14400
 
   #ifndef TOUCH_CALIBRATION_X
     #define TOUCH_CALIBRATION_X           -17253

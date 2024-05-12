@@ -31,7 +31,7 @@
 #include "../inc/MarlinConfig.h"
 
 #if ALL(DWIN_LCD_PROUI, INDIVIDUAL_AXIS_HOMING_SUBMENU, MESH_BED_LEVELING)
-  #include "../lcd/e3v2/proui/dwin.h"
+  #include "../lcd/e3v2/proui/dwin.h" // for Z_POST_CLEARANCE
 #endif
 
 #if IS_SCARA
@@ -142,16 +142,17 @@ XYZ_DEFS(float, base_home_pos,  HOME_POS);
 XYZ_DEFS(float, max_length,     MAX_LENGTH);
 XYZ_DEFS(int8_t, home_dir, HOME_DIR);
 
+// Flags for rotational axes
+constexpr AxisFlags rotational{0 LOGICAL_AXIS_GANG(
+    | 0, | 0, | 0, | 0,
+    | (ENABLED(AXIS4_ROTATES)<<I_AXIS), | (ENABLED(AXIS5_ROTATES)<<J_AXIS), | (ENABLED(AXIS6_ROTATES)<<K_AXIS),
+    | (ENABLED(AXIS7_ROTATES)<<U_AXIS), | (ENABLED(AXIS8_ROTATES)<<V_AXIS), | (ENABLED(AXIS9_ROTATES)<<W_AXIS))
+};
+
 inline float home_bump_mm(const AxisEnum axis) {
   static const xyz_pos_t home_bump_mm_P DEFS_PROGMEM = HOMING_BUMP_MM;
   return pgm_read_any(&home_bump_mm_P[axis]);
 }
-
-#if HAS_WORKSPACE_OFFSET
-  void update_workspace_offset(const AxisEnum axis);
-#else
-  inline void update_workspace_offset(const AxisEnum) {}
-#endif
 
 #if HAS_HOTEND_OFFSET
   extern xyz_pos_t hotend_offset[HOTENDS];
@@ -412,12 +413,12 @@ void remember_feedrate_scaling_off();
 void restore_feedrate_and_scaling();
 
 #if HAS_Z_AXIS
-  #if ALL(DWIN_LCD_PROUI, INDIVIDUAL_AXIS_HOMING_SUBMENU, MESH_BED_LEVELING)
-    #define Z_POST_CLEARANCE hmiData.z_after_homing
-  #elif defined(Z_AFTER_HOMING)
-    #define Z_POST_CLEARANCE Z_AFTER_HOMING
-  #else
-    #define Z_POST_CLEARANCE Z_CLEARANCE_FOR_HOMING
+  #ifndef Z_POST_CLEARANCE  // May be set by proui/dwin.h :-P
+    #ifdef Z_AFTER_HOMING
+      #define Z_POST_CLEARANCE Z_AFTER_HOMING
+    #else
+      #define Z_POST_CLEARANCE Z_CLEARANCE_FOR_HOMING
+    #endif
   #endif
   void do_z_clearance(const_float_t zclear, const bool with_probe=true, const bool lower_allowed=false);
   void do_z_clearance_by(const_float_t zclear);
@@ -484,32 +485,23 @@ void home_if_needed(const bool keeplev=false);
 
 #define BABYSTEP_ALLOWED() ((ENABLED(BABYSTEP_WITHOUT_HOMING) || all_axes_trusted()) && (ENABLED(BABYSTEP_ALWAYS_AVAILABLE) || printer_busy()))
 
+#if HAS_HOME_OFFSET
+  extern xyz_pos_t home_offset;
+#endif
+
 /**
  * Workspace offsets
  */
-#if HAS_HOME_OFFSET || HAS_POSITION_SHIFT
-  #if HAS_HOME_OFFSET
-    extern xyz_pos_t home_offset;
-  #endif
-  #if HAS_POSITION_SHIFT
-    extern xyz_pos_t position_shift;
-  #endif
-  #if HAS_HOME_OFFSET && HAS_POSITION_SHIFT
-    extern xyz_pos_t workspace_offset;
-    #define _WS workspace_offset
-  #elif HAS_HOME_OFFSET
-    #define _WS home_offset
-  #else
-    #define _WS position_shift
-  #endif
-  #define NATIVE_TO_LOGICAL(POS, AXIS) ((POS) + _WS[AXIS])
-  #define LOGICAL_TO_NATIVE(POS, AXIS) ((POS) - _WS[AXIS])
-  FORCE_INLINE void toLogical(xy_pos_t &raw)   { raw += _WS; }
-  FORCE_INLINE void toLogical(xyz_pos_t &raw)  { raw += _WS; }
-  FORCE_INLINE void toLogical(xyze_pos_t &raw) { raw += _WS; }
-  FORCE_INLINE void toNative(xy_pos_t &raw)    { raw -= _WS; }
-  FORCE_INLINE void toNative(xyz_pos_t &raw)   { raw -= _WS; }
-  FORCE_INLINE void toNative(xyze_pos_t &raw)  { raw -= _WS; }
+#if HAS_WORKSPACE_OFFSET
+  extern xyz_pos_t workspace_offset;
+  #define NATIVE_TO_LOGICAL(POS, AXIS) ((POS) + workspace_offset[AXIS])
+  #define LOGICAL_TO_NATIVE(POS, AXIS) ((POS) - workspace_offset[AXIS])
+  FORCE_INLINE void toLogical(xy_pos_t &raw)   { raw += workspace_offset; }
+  FORCE_INLINE void toLogical(xyz_pos_t &raw)  { raw += workspace_offset; }
+  FORCE_INLINE void toLogical(xyze_pos_t &raw) { raw += workspace_offset; }
+  FORCE_INLINE void toNative(xy_pos_t &raw)    { raw -= workspace_offset; }
+  FORCE_INLINE void toNative(xyz_pos_t &raw)   { raw -= workspace_offset; }
+  FORCE_INLINE void toNative(xyze_pos_t &raw)  { raw -= workspace_offset; }
 #else
   #define NATIVE_TO_LOGICAL(POS, AXIS) (POS)
   #define LOGICAL_TO_NATIVE(POS, AXIS) (POS)
@@ -633,7 +625,7 @@ void home_if_needed(const bool keeplev=false);
 
 #endif
 
-#if HAS_M206_COMMAND
+#if HAS_HOME_OFFSET
   void set_home_offset(const AxisEnum axis, const_float_t v);
 #endif
 
