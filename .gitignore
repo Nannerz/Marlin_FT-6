@@ -123,8 +123,7 @@ __vm/
 vc-fileutils.settings
 
 # Visual Studio Code
-.vscode/*
-# !.vscode/extensions.json
+.vscode/
 *.code-workspace
 
 # Simulation files
